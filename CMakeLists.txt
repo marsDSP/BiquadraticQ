@@ -91,7 +91,16 @@ add_compile_definitions(JUCE_PROJECT_NAME="${PROJECT_NAME}")
 
 # Define SharedCode as an INTERFACE library (no sources required)
 add_library(SharedCode INTERFACE
-        source/PluginProcessor.h)
+        source/PluginProcessor.h
+        source/dsp/filters/filter_iir.h
+        source/dsp/filters/filter_coeffs.h
+        source/dsp/filters/filter_transformer.h
+        source/dsp/filters/filter_config.h
+        source/dsp/filters/filter_mathops.h
+        source/dsp/filters/filter_spec.h
+        source/dsp/filters/filter_cascade.h
+        source/dsp/filters/filter_engine.h
+        source/dsp/filters/filter_dispatcher.h)
 
 # Set compile features for SharedCode
 target_compile_features(SharedCode INTERFACE cxx_std_23)
