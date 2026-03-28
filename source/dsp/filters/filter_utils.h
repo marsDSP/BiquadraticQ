@@ -24,7 +24,7 @@ inline utils
     }
 
     template<typename T>
-    constexpr void unused(const T &variable, const std::string_view &message)
+    constexpr void unused(const T &variable, const nonstd::string_view &message)
     {
         unused(variable);
         unused(message);
