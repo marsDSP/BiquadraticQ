@@ -28,13 +28,13 @@ inline Engine
     template<typename T>
     void apply_scale(biquad<T> &biquad, T scale) noexcept
     {
-        biquad.set_b0(biquad.b0() * scale);
-        biquad.set_b1(biquad.b1() * scale);
-        biquad.set_b2(biquad.b2() * scale);
+        biquad.set_b0(biquad.get_b0() * scale);
+        biquad.set_b1(biquad.get_b1() * scale);
+        biquad.set_b2(biquad.get_b2() * scale);
     }
 
     template<typename T, std::size_t N>
-    std::complex<T> make_response(const cascade<T, N> &cascade, T normalized_frequency)
+    std::complex<T> make_response(const cascade<T, N> &chain, T normalized_frequency)
     {
         const auto w = constants<T>::two_pi * normalized_frequency;
         const auto czn1 = std::polar(static_cast<T>(1), -w);
@@ -42,16 +42,16 @@ inline Engine
         auto ch = std::complex<T>(1, 0);
         auto cbot = std::complex<T>(1, 0);
 
-        for (std::int32_t i = static_cast<int32_t>(cascade.size()), index = 0; --i >= 0; ++index)
+        for (std::int32_t i = static_cast<int32_t>(chain.size()), index = 0; --i >= 0; ++index)
         {
-            const auto &stage = cascade[index];
+            const auto &stage = chain[index];
             auto cb = std::complex<T>(1, 0);
-            auto ct = std::complex<T>(stage.b0() / stage.a0(), 0);
+            auto ct = std::complex<T>(stage.get_b0() / stage.get_a0(), 0);
 
-            ct = addmul(ct, stage.b1() / stage.a0(), czn1);
-            ct = addmul(ct, stage.b2() / stage.a0(), czn2);
-            cb = addmul(cb, stage.a1() / stage.a0(), czn1);
-            cb = addmul(cb, stage.a2() / stage.a0(), czn2);
+            ct = addmul(ct, stage.get_b1() / stage.get_a0(), czn1);
+            ct = addmul(ct, stage.get_b2() / stage.get_a0(), czn2);
+            cb = addmul(cb, stage.get_a1() / stage.get_a0(), czn1);
+            cb = addmul(cb, stage.get_a2() / stage.get_a0(), czn2);
             ch *= ct;
             cbot *= cb;
         }

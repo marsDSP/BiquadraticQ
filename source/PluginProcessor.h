@@ -2,15 +2,18 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <array>
+#include <atomic>
 #include <memory>
-#include "dsp/filters/filter_iir.h"
 #include "dsp/filters/filter_coeffs.h"
+#include "dsp/filters/filter_engine.h"
+#include "dsp/filters/filter_iir.h"
 #include "dsp/filters/filter_utils.h"
 
 using namespace MarsDSP::Filters;
 
 //==============================================================================
-class AudioPluginAudioProcessor final : public juce::AudioProcessor
+class AudioPluginAudioProcessor final : public juce::AudioProcessor,
+                                        private juce::AudioProcessorValueTreeState::Listener
 {
 public:
     //==============================================================================
@@ -52,11 +55,28 @@ public:
     juce::AudioProcessorValueTreeState apvts;
 
 private:
-    juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-    void updateCoefficients();
+    using MonoChain = BiquadCascade::cascade<float, 1>;
 
-    std::array<Biquadratic::biquad<float>, 2> filters;
+    struct FilterParams
+    {
+        Biquadratic::FilterType type { Biquadratic::FilterType::LowPass };
+        float cutoffHz { 1000.0f };
+        float q { 0.707f };
+        float bandCenterHz { 5000.0f };
+        float bandWidthControlHz { 1000.0f };
+        float gainDb { 0.0f };
+    };
+
+    juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    FilterParams readParams() const;
+    Biquadratic::biquad<float> makeStage(const FilterParams& params) const;
+    MonoChain buildChain(const FilterParams& params) const;
+    void rebuildChains();
+    void parameterChanged(const juce::String&, float) override;
+
+    std::array<MonoChain, 2> chains;
     double currentSampleRate { 44100.0 };
+    std::atomic<bool> chainDirty { true };
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)

@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstddef>
+#include <stdexcept>
 #include "filter_iir.h"
 
 namespace MarsDSP::Filters::inline BiquadCascade {
@@ -14,11 +15,12 @@ namespace MarsDSP::Filters::inline BiquadCascade {
     {
     public:
         using SampleType = T;
+        using Stage = biquad<T>;
         using SizeType = std::size_t;
-        using ref = SampleType&;
-        using cref = const SampleType&;
-        using itr = SampleType*;
-        using citr = const SampleType*;
+        using ref = Stage&;
+        using cref = const Stage&;
+        using itr = Stage*;
+        using citr = const Stage*;
 
         constexpr cascade() = default;
         ~cascade() = default;
@@ -53,7 +55,7 @@ namespace MarsDSP::Filters::inline BiquadCascade {
 
     private:
         std::size_t numStage {0};
-        std::array<biquad<T>, N> casc {};
+        std::array<Stage, N> casc {};
     };
 
     template<typename T, size_t N>

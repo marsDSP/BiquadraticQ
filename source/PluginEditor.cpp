@@ -76,8 +76,12 @@ void AudioPluginAudioProcessorEditor::comboBoxChanged (juce::ComboBox* comboBoxT
 void AudioPluginAudioProcessorEditor::updateSliderVisibility()
 {
     const bool isBandPass = (typeBox.getSelectedId() == 3); // BandPass is 3rd item (1-indexed)
+
     qSlider.setVisible(!isBandPass);
     qLabel.setVisible(!isBandPass);
+
     freqSlider.setVisible(isBandPass);
     freqLabel.setVisible(isBandPass);
+
+    cutoffLabel.setText(isBandPass ? "Bandwidth" : "Cutoff", juce::dontSendNotification);
 }
