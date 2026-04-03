@@ -76,7 +76,7 @@ namespace MarsDSP::Filters::Coeffs
             
             const T centerFreq = fclamp(centerFreqParam, minFreq, halfSr);
             const T bw = fmax(bandwidthParam, static_cast<T>(10e-9));
-            const T newQ = fmax(centerFreq / bw, static_cast<T>(10e-9));
+            const T newQ = fmax(static_cast<T>(1000) / bw, static_cast<T>(10e-9));
 
             const T w0 = (static_cast<T>(2) * std::numbers::pi_v<T>) * (centerFreq / sr);
             const auto [sinW0, cosW0] = xsimd::sincos(w0);
