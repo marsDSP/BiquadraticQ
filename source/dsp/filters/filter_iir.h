@@ -157,12 +157,11 @@ namespace MarsDSP::Filters::inline Biquadratic
     template <typename T>
     constexpr biquad<T>::SampleType biquad<T>::tick(const SampleType xn) noexcept
     {
-        auto yn = coeff_b0 * xn + state_w0;
-        yn = std::clamp(yn, static_cast<T>(-100), static_cast<T>(100));
-        state_w0 = coeff_b1 * xn - coeff_a1 * yn + state_w1;
-        state_w0 = std::clamp(state_w0, static_cast<T>(-100), static_cast<T>(100));
+        constexpr auto tiny = static_cast<T>(1e-18);
+
+        auto yn = coeff_b0 * xn + state_w0 + tiny;
+        state_w0 = coeff_b1 * xn - coeff_a1 * yn + state_w1 - tiny;
         state_w1 = coeff_b2 * xn - coeff_a2 * yn;
-        state_w1 = std::clamp(state_w1, static_cast<T>(-100), static_cast<T>(100));
         return yn;
     }
 

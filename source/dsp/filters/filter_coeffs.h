@@ -22,7 +22,7 @@ namespace MarsDSP::Filters::Coeffs
         constexpr biquad<T> operator()(T sr, T cf, T Q, T gain = 1) const
         {
             unused(gain);
-            const T newCF = fclamp(cf, static_cast<T>(10), static_cast<T>(sr * 0.49));
+            const T newCF = fclamp(cf, static_cast<T>(1e-18), static_cast<T>(sr * 0.49));
             const T newQ = fmax(Q, static_cast<T>(10e-9));
             const T w0 = (static_cast<T>(2) * std::numbers::pi_v<T>) * (newCF / sr);
             const auto [sinW0, cosW0] = xsimd::sincos(w0);
@@ -47,7 +47,7 @@ namespace MarsDSP::Filters::Coeffs
         constexpr biquad<T> operator()(T sr, T cf, T Q, T gain = 1) const
         {
             unused(gain);
-            const T newCF = fclamp(cf, static_cast<T>(10), static_cast<T>(sr * 0.49));
+            const T newCF = fclamp(cf, static_cast<T>(1e-18), static_cast<T>(sr * 0.49));
             const T newQ = fmax(Q, static_cast<T>(10e-9));
             const T w0 = (static_cast<T>(2) * std::numbers::pi_v<T>) * (newCF / sr);
             const auto [sinW0, cosW0] = xsimd::sincos(w0);

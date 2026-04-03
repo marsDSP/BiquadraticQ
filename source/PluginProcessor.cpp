@@ -8,14 +8,10 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
        apvts (*this, nullptr, "Parameters", createParameterLayout())
 {
-    for (auto* parameterId : { "cutoff", "q", "freq", "gain", "type" })
-        apvts.addParameterListener (parameterId, this);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
 {
-    for (auto* parameterId : { "cutoff", "q", "freq", "gain", "type" })
-        apvts.removeParameterListener (parameterId, this);
 }
 
 //==============================================================================
@@ -86,14 +82,17 @@ void AudioPluginAudioProcessor::changeProgramName (int index, const juce::String
 //==============================================================================
 void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    // Use this method as the place to do any pre-playback
+    // initialisation that you need..
     currentSampleRate = sampleRate;
     juce::ignoreUnused (samplesPerBlock);
 
-    rebuildChains();
-    chainDirty.store (false, std::memory_order_release);
+    for (auto& filter : filters)
+    {
+        filter.reset();
+    }
 
-    for (auto& chain : chains)
-        chain.reset();
+    updateCoefficients();
 }
 
 void AudioPluginAudioProcessor::releaseResources()
@@ -132,22 +131,17 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     juce::ignoreUnused (midiMessages);
     juce::ScopedNoDenormals noDenormals;
 
-    if (chainDirty.exchange (false, std::memory_order_acq_rel))
-        rebuildChains();
+    updateCoefficients();
 
-    const auto channelsToProcess = std::min<int> (buffer.getNumChannels(), static_cast<int> (chains.size()));
-
-    for (int channel = 0; channel < channelsToProcess; ++channel)
+    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
     {
         auto* channelData = buffer.getWritePointer (channel);
-        auto& chain = chains[static_cast<size_t> (channel)];
-
+        auto& filter = filters[static_cast<size_t>(channel)];
         for (int i = 0; i < buffer.getNumSamples(); ++i)
-            channelData[i] = chain.tick (channelData[i]);
+        {
+            channelData[i] = filter.tick (channelData[i]);
+        }
     }
-
-    for (int channel = channelsToProcess; channel < buffer.getNumChannels(); ++channel)
-        buffer.clear (channel, 0, buffer.getNumSamples());
 }
 
 //==============================================================================
@@ -175,8 +169,6 @@ void AudioPluginAudioProcessor::setStateInformation (const void* data, int sizeI
     if (xmlState.get() != nullptr)
         if (xmlState->hasTagName (apvts.state.getType()))
             apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
-
-    chainDirty.store (true, std::memory_order_release);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::createParameterLayout()
@@ -198,66 +190,27 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
     return layout;
 }
 
-AudioPluginAudioProcessor::FilterParams AudioPluginAudioProcessor::readParams() const
+void AudioPluginAudioProcessor::updateCoefficients()
 {
-    FilterParams params;
+    const auto cutoff = apvts.getRawParameterValue ("cutoff")->load();
+    const auto q = apvts.getRawParameterValue ("q")->load();
+    const auto freq = apvts.getRawParameterValue ("freq")->load();
+    const auto gain = apvts.getRawParameterValue ("gain")->load();
+    const auto typeIndex = static_cast<int>(apvts.getRawParameterValue ("type")->load());
 
-    params.cutoffHz = apvts.getRawParameterValue ("cutoff")->load();
-    params.q = apvts.getRawParameterValue ("q")->load();
-    params.bandCenterHz = apvts.getRawParameterValue ("freq")->load();
-    params.bandWidthControlHz = apvts.getRawParameterValue ("cutoff")->load();
-    params.gainDb = apvts.getRawParameterValue ("gain")->load();
+    Biquadratic::biquad<float> newCoeffs;
+    const auto sr = static_cast<float>(currentSampleRate);
 
-    switch (static_cast<int> (apvts.getRawParameterValue ("type")->load()))
+    switch (typeIndex)
     {
-        case 0: params.type = Biquadratic::FilterType::LowPass; break;
-        case 1: params.type = Biquadratic::FilterType::HighPass; break;
-        case 2: params.type = Biquadratic::FilterType::BandPass; break;
-        case 3: params.type = Biquadratic::FilterType::AllPass; break;
+        case 0: newCoeffs = Engine::calculate_coeffs<float, Biquadratic::FilterType::LowPass>(sr, cutoff, q, gain); break;
+        case 1: newCoeffs = Engine::calculate_coeffs<float, Biquadratic::FilterType::HighPass>(sr, cutoff, q, gain); break;
+        case 2: newCoeffs = Engine::calculate_coeffs<float, Biquadratic::FilterType::BandPass>(sr, freq, cutoff, gain); break;
+        case 3: newCoeffs = Engine::calculate_coeffs<float, Biquadratic::FilterType::AllPass>(sr, cutoff, q, gain); break;
         default: break;
     }
 
-    return params;
-}
-
-Biquadratic::biquad<float> AudioPluginAudioProcessor::makeStage (const FilterParams& params) const
-{
-    const auto sr = static_cast<float>(currentSampleRate);
-
-    switch (params.type)
-    {
-        case Biquadratic::FilterType::LowPass:
-            return Coeffs::CoeffCalc<float, Biquadratic::FilterType::LowPass>{} (sr, params.cutoffHz, params.q, params.gainDb);
-        case Biquadratic::FilterType::HighPass:
-            return Coeffs::CoeffCalc<float, Biquadratic::FilterType::HighPass>{} (sr, params.cutoffHz, params.q, params.gainDb);
-        case Biquadratic::FilterType::BandPass:
-            return Coeffs::CoeffCalc<float, Biquadratic::FilterType::BandPass>{} (sr, params.bandCenterHz, params.bandWidthControlHz, params.gainDb);
-        case Biquadratic::FilterType::AllPass:
-            return Coeffs::CoeffCalc<float, Biquadratic::FilterType::AllPass>{} (sr, params.cutoffHz, params.q, params.gainDb);
-        default:
-            return {};
-    }
-}
-
-AudioPluginAudioProcessor::MonoChain AudioPluginAudioProcessor::buildChain (const FilterParams& params) const
-{
-    MonoChain chain;
-    chain.clear();
-    chain.emplace_back (makeStage (params));
-    return chain;
-}
-
-void AudioPluginAudioProcessor::rebuildChains()
-{
-    const auto params = readParams();
-
-    for (auto& chain : chains)
-        chain = buildChain (params);
-}
-
-void AudioPluginAudioProcessor::parameterChanged (const juce::String&, float)
-{
-    chainDirty.store (true, std::memory_order_release);
+    Engine::update_all(filters, newCoeffs);
 }
 
 //==============================================================================

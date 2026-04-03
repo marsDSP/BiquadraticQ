@@ -77,8 +77,7 @@ namespace MarsDSP::Filters::inline Base {
 
         [[nodiscard]] constexpr bool NaN() const noexcept
         {
-            return std::isnan(this->first.real()) || std::isnan(this->first.imag())
-                || std::isnan(this->second.real()) || std::isnan(this->second.imag());
+            return std::isnan(this->first) || std::isnan(this->second);
         }
     };
 
@@ -223,7 +222,7 @@ namespace MarsDSP::Filters::inline Base {
 
         [[nodiscard]] constexpr size_type size() const noexcept
         {
-            return pair_count();
+            return (num_poles_ + 1) / 2 + 1;
         }
 
         constexpr const_iterator begin() const noexcept
@@ -258,24 +257,14 @@ namespace MarsDSP::Filters::inline Base {
         }
 
     private:
-        [[nodiscard]] static constexpr bool is_nan(const std::complex<T>& c) noexcept
-        {
-            return std::isnan(c.real()) || std::isnan(c.imag());
-        }
-
-        [[nodiscard]] static constexpr bool is_odd(size_type x) noexcept
-        {
-            return (x % 2) != 0;
-        }
-
-        [[nodiscard]] static constexpr bool is_even(size_type x) noexcept
+        constexpr bool is_even(T x)
         {
             return !is_odd(x);
         }
 
         [[nodiscard]] constexpr size_type pair_count() const noexcept
         {
-            return (num_poles_ + 1) / 2;
+            return num_poles_ / 2;
         }
 
         constexpr void ensure_even_poles() const

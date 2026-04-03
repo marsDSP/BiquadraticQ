@@ -6,23 +6,36 @@
 #include "filter_base.h"
 #include "filter_iir.h"
 #include "filter_cascade.h"
+#include "filter_coeffs.h"
 #include "filter_config.h"
 
-namespace MarsDSP::Filters::
-inline Engine
+namespace MarsDSP::Filters::Engine
 {
+    template<typename T, FilterType Type, typename... Args>
+    biquad<T> calculate_coeffs(T sr, Args... args)
+    {
+        return Coeffs::CoeffCalc<T, Type>{}(sr, args...);
+    }
+
+    template<typename T, typename Container>
+    void update_all(Container& filters, const biquad<T>& coeffs)
+    {
+        for (auto& filter : filters)
+            filter = coeffs;
+    }
+
     template<typename T>
     biquad<T> make_biquad(const pz_pair<T> &pair) noexcept
     {
         if (pair.single_pole())
         {
-            return biquad<T>(pair.poles().first,
-                             pair.zeros().first);
+            return Biquadratic::biquad<T>(pair.poles().first,
+                                          pair.zeros().first);
         }
-        return biquad<T>(pair.poles().first,
-                         pair.zeros().first,
-                         pair.poles().second,
-                         pair.zeros().second);
+        return Biquadratic::biquad<T>(pair.poles().first,
+                                      pair.zeros().first,
+                                      pair.poles().second,
+                                      pair.zeros().second);
     }
 
     template<typename T>
@@ -34,7 +47,7 @@ inline Engine
     }
 
     template<typename T, std::size_t N>
-    std::complex<T> make_response(const cascade<T, N> &chain, T normalized_frequency)
+    std::complex<T> make_response(const cascade<T, N> &cascade, T normalized_frequency)
     {
         const auto w = constants<T>::two_pi * normalized_frequency;
         const auto czn1 = std::polar(static_cast<T>(1), -w);
@@ -42,16 +55,16 @@ inline Engine
         auto ch = std::complex<T>(1, 0);
         auto cbot = std::complex<T>(1, 0);
 
-        for (std::int32_t i = static_cast<int32_t>(chain.size()), index = 0; --i >= 0; ++index)
+        for (std::int32_t i = static_cast<int32_t>(cascade.size()), index = 0; --i >= 0; ++index)
         {
-            const auto &stage = chain[index];
+            const auto &stage = cascade[index];
             auto cb = std::complex<T>(1, 0);
             auto ct = std::complex<T>(stage.get_b0() / stage.get_a0(), 0);
 
-            ct = addmul(ct, stage.get_b1() / stage.get_a0(), czn1);
-            ct = addmul(ct, stage.get_b2() / stage.get_a0(), czn2);
-            cb = addmul(cb, stage.get_a1() / stage.get_a0(), czn1);
-            cb = addmul(cb, stage.get_a2() / stage.get_a0(), czn2);
+            ct = complex_ops::addmul(ct, stage.get_b1() / stage.get_a0(), czn1);
+            ct = complex_ops::addmul(ct, stage.get_b2() / stage.get_a0(), czn2);
+            cb = complex_ops::addmul(cb, stage.get_a1() / stage.get_a0(), czn1);
+            cb = complex_ops::addmul(cb, stage.get_a2() / stage.get_a0(), czn2);
             ch *= ct;
             cbot *= cb;
         }
@@ -76,5 +89,5 @@ inline Engine
 
         return cascade;
     }
-};
+}
 #endif
