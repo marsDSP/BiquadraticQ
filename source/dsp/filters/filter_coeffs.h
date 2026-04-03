@@ -4,38 +4,109 @@
 #define BIQUADRATICQ_FILTER_COEFFS_H
 
 #include <numbers>
+#include <xsimd/xsimd.hpp>
 #include "filter_iir.h"
 #include "filter_utils.h"
 
-namespace MarsDSP::Filters::
-inline RBJ {
-
-    template<typename T, FilterType Type>
-    struct RBJ
+namespace MarsDSP::Filters::inline CoeffCalc
+{
+    template <typename T, FilterType Type>
+    struct CoeffCalc
     {
     };
 
     template <typename T>
-    struct RBJ <T, FilterType::LowPass>
+    struct CoeffCalc <T, FilterType::LowPass>
     {
-        constexpr biquad<T> operator()(T sr, T Q, T cf, T gainDB = 1) const
+        constexpr biquad<T> operator()(T sr, T cf, T Q, T gain = 1) const
         {
-            unused(gainDB);
-            const T new_cf = std::clamp(cf, static_cast<T>(10), static_cast<T>(sr * 0.49));
-            const T newQ = std::max(Q, 10e-9);
-            const T w0 = static_cast<T>(2) * std::numbers::pi_v<T> * (new_cf / sr);
-            const T sinW0 = std::sin(w0);
-            const T cosW0 = std::cos(w0);
-            const T alpha = sinW0 / static_cast<T>(2) * newQ;
-            const T omega = static_cast<T>(2) * std::pow(std::sin(w0 / static_cast<T>(2)), static_cast<T>(2));
+            unused(gain);
+            const T newCF = fclamp(cf, static_cast<T>(10), static_cast<T>(sr * 0.49));
+            const T newQ = fmax(Q, static_cast<T>(10e-9));
+            const T w0 = (static_cast<T>(2) * std::numbers::pi_v<T>) * (newCF / sr);
+            const auto [sinW0, cosW0] = xsimd::sincos(w0);
+            const T alpha = sinW0 / (static_cast<T>(2) * newQ);
+            const T halfSin = fsin(w0 / static_cast<T>(2));
+            const T omega = static_cast<T>(2)*halfSin*halfSin;
 
             std::array<T, 3> a{}, b{};
-            a[0] = static_cast<T>(1 + alpha);
-            a[1] = static_cast<T>(-2 * cosW0);
-            a[2] = static_cast<T>(1 - alpha);
-            b[0] = static_cast<T>(omega / static_cast<T>(2));
+            a[0] = static_cast<T>(1+alpha);
+            a[1] = static_cast<T>(-2*cosW0);
+            a[2] = static_cast<T>(1-alpha);
+            b[0] = static_cast<T>(omega/static_cast<T>(2));
             b[1] = static_cast<T>(omega);
             b[2] = b[0];
+            return biquad<T>(a[0], a[1], a[2], b[0], b[1], b[2]);
+        }
+    };
+
+    template <typename T>
+    struct CoeffCalc <T, FilterType::HighPass>
+    {
+        constexpr biquad<T> operator()(T sr, T cf, T Q, T gain = 1) const
+        {
+            unused(gain);
+            const T newCF = fclamp(cf, static_cast<T>(10), static_cast<T>(sr * 0.49));
+            const T newQ = fmax(Q, static_cast<T>(10e-9));
+            const T w0 = (static_cast<T>(2) * std::numbers::pi_v<T>) * (newCF / sr);
+            const auto [sinW0, cosW0] = xsimd::sincos(w0);
+            const T alpha = sinW0 / (static_cast<T>(2) * newQ);
+
+            std::array<T, 3> a{}, b{};
+            a[0] = static_cast<T>(1+alpha);
+            a[1] = static_cast<T>(-2*cosW0);
+            a[2] = static_cast<T>(1-alpha);
+            b[0] = static_cast<T>(1 + cosW0/static_cast<T>(2));
+            b[1] = static_cast<T>(-(1 + cosW0));
+            b[2] = b[0];
+            return biquad<T>(a[0], a[1], a[2], b[0], b[1], b[2]);
+        }
+    };
+
+    template <typename T>
+    struct CoeffCalc <T, FilterType::BandPass>
+    {
+        constexpr biquad<T> operator()(T sr, T cf, T Q, T gain = 1) const
+        {
+            unused(gain);
+            const T newCF = fclamp(cf, static_cast<T>(10), static_cast<T>(sr * 0.49));
+            const T newQ = fmax(Q, static_cast<T>(10e-9));
+            const T w0 = (static_cast<T>(2) * std::numbers::pi_v<T>) * (newCF / sr);
+            const auto [sinW0, cosW0] = xsimd::sincos(w0);
+            const T alpha = sinW0 / (static_cast<T>(2) * newQ);
+
+            std::array<T, 3> a{}, b{};
+            a[0] = static_cast<T>(1+alpha);
+            a[1] = static_cast<T>(-2*cosW0);
+            a[2] = static_cast<T>(1-alpha);
+            b[0] = static_cast<T>(sinW0/static_cast<T>(2));
+            b[1] = static_cast<T>(0);
+            b[2] = static_cast<T>(-sinW0/static_cast<T>(2));
+            return biquad<T>(a[0], a[1], a[2], b[0], b[1], b[2]);
+        }
+    };
+
+    template <typename T>
+    struct CoeffCalc <T, FilterType::AllPass>
+    {
+        constexpr biquad<T> operator()(T sr, T cf, T Q, T gain = 1) const
+        {
+            unused(gain);
+            const T newCF = fclamp(cf, static_cast<T>(10), static_cast<T>(sr * 0.49));
+            const T newQ = fmax(Q, static_cast<T>(10e-9));
+            const T w0 = (static_cast<T>(2) * std::numbers::pi_v<T>) * (newCF / sr);
+            const auto [sinW0, cosW0] = xsimd::sincos(w0);
+            const T alpha = sinW0 / (static_cast<T>(2) * newQ);
+            const T halfSin = fsin(w0 / static_cast<T>(2));
+            const T omega = static_cast<T>(2)*halfSin*halfSin;
+
+            std::array<T, 3> a{}, b{};
+            a[0] = static_cast<T>(1+alpha);
+            a[1] = static_cast<T>(-2*cosW0);
+            a[2] = static_cast<T>(1-alpha);
+            b[0] = static_cast<T>(1-alpha);
+            b[1] = static_cast<T>(-2*cosW0);
+            b[2] = static_cast<T>(1+alpha);
             return biquad<T>(a[0], a[1], a[2], b[0], b[1], b[2]);
         }
     };

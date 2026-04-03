@@ -101,7 +101,8 @@ add_library(SharedCode INTERFACE
         source/dsp/filters/filter_cascade.h
         source/dsp/filters/filter_engine.h
         source/dsp/filters/filter_dispatcher.h
-        source/dsp/filters/filter_utils.h)
+        source/dsp/filters/filter_utils.h
+        source/dsp/filters/filter_base.h)
 
 # Set compile features for SharedCode
 target_compile_features(SharedCode INTERFACE cxx_std_23)

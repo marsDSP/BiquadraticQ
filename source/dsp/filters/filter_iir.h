@@ -7,12 +7,13 @@
 #include <algorithm>
 #include <stdexcept>
 
-namespace MarsDSP::Filters::
-inline Biquadratic {
+namespace MarsDSP::Filters::inline Biquadratic
+{
     enum class FilterType
     {
         LowPass,
         HighPass,
+        Peaking,
         BandPass,
         LowShelf,
         HighShelf,
@@ -22,10 +23,12 @@ inline Biquadratic {
     };
 
     template <typename T>
-    class biquad {
+    class biquad
+    {
     public:
         using SampleType = T;
         constexpr biquad() noexcept = default;
+
         constexpr biquad(const biquad&) noexcept = default;
         constexpr biquad(biquad&&) noexcept = default;
 
@@ -35,7 +38,8 @@ inline Biquadratic {
         constexpr biquad(SampleType a0, SampleType a1, SampleType a2,
                          SampleType b0, SampleType b1, SampleType b2) noexcept;
 
-        constexpr biquad(const std::complex<T> &pole, const std::complex<T> &zero);
+        constexpr biquad(const std::complex<T> &pole,
+                         const std::complex<T> &zero);
 
         constexpr biquad(const std::complex<T> &poleI, const std::complex<T> &poleII,
                          const std::complex<T> &zeroI, const std::complex<T> &zeroII);
@@ -59,7 +63,7 @@ inline Biquadratic {
         constexpr SampleType tick(SampleType xn) noexcept;
 
         template <typename inIter, typename outIter>
-        constexpr void batch(inIter begin, inIter end, outIter cap);
+        constexpr void batch(inIter begin, inIter end, outIter capacity);
 
         [[nodiscard]] constexpr bool stability() const noexcept;
         constexpr explicit operator bool() const noexcept;
@@ -79,9 +83,9 @@ inline Biquadratic {
 
     template <typename T>
     constexpr biquad<T>::biquad(SampleType a0, SampleType a1, SampleType a2,
-                         SampleType b0, SampleType b1, SampleType b2) noexcept :
-                            coeff_b2(b2 / a0), coeff_b1(b1 / a0), coeff_b0(b0 / a0),
-                            coeff_a2(a2 / b0), coeff_a1(a1 / a0), coeff_a0(1)
+                                SampleType b0, SampleType b1, SampleType b2) noexcept :
+                                coeff_b2(b2 / a0), coeff_b1(b1 / a0), coeff_b0(b0 / a0),
+                                coeff_a2(a2 / a0), coeff_a1(a1 / a0), coeff_a0(1)
     {
     }
 
@@ -92,19 +96,19 @@ inline Biquadratic {
     {
         if (pole.imag() != 0)
         {
-            throw std::runtime_error("Expecting complex pole");
+            throw std::runtime_error("Expecting real pole");
         }
 
         if (zero.imag() != 0)
         {
-            throw std::runtime_error("Expecting complex zero");
+            throw std::runtime_error("Expecting real zero");
         }
     }
 
     template <typename T>
     constexpr biquad<T>::biquad(const std::complex<T> &poleI, const std::complex<T> &poleII,
                                 const std::complex<T> &zeroI, const std::complex<T> &zeroII) :
-                                    coeff_b0(1), coeff_a0(1)
+                                coeff_b0(1), coeff_a0(1)
     {
         if (poleI.imag() != 0)
         {
@@ -114,8 +118,7 @@ inline Biquadratic {
             }
             coeff_a1 = -2 * poleI.real();
             coeff_a2 = std::norm(poleI);
-        }
-        else
+        } else
         {
             if (poleII.imag() != 0)
             {
@@ -129,23 +132,22 @@ inline Biquadratic {
         {
             if (zeroII != std::conj(zeroI))
             {
-                throw std::runtime_error("Expecting complex conjugate");
+                throw std::runtime_error("Expecting complex (zero) conjugate");
             }
             coeff_b1 = -2 * zeroI.real();
             coeff_b2 = std::norm(zeroI);
-        }
-        else
+        } else
         {
             if (zeroII.imag() != 0)
             {
-                throw std::runtime_error("Expecting real number");
+                throw std::runtime_error("Expecting real zero");
             }
             coeff_b1 = -(zeroI.real() + zeroII.real());
             coeff_b2 = zeroI.real() * zeroII.real();
         }
     }
 
-    template <typename T>
+    template<typename T>
     constexpr void biquad<T>::reset() noexcept
     {
         state_w0 = 0;
@@ -156,9 +158,22 @@ inline Biquadratic {
     constexpr biquad<T>::SampleType biquad<T>::tick(const SampleType xn) noexcept
     {
         auto yn = coeff_b0 * xn + state_w0;
+        yn = std::clamp(yn, static_cast<T>(-100), static_cast<T>(100));
         state_w0 = coeff_b1 * xn - coeff_a1 * yn + state_w1;
+        state_w0 = std::clamp(state_w0, static_cast<T>(-100), static_cast<T>(100));
         state_w1 = coeff_b2 * xn - coeff_a2 * yn;
+        state_w1 = std::clamp(state_w1, static_cast<T>(-100), static_cast<T>(100));
         return yn;
+    }
+
+    template <typename T>
+    template <typename inIter, typename outIter>
+    constexpr void biquad<T>::batch(inIter begin, inIter end, outIter capacity)
+    {
+        for (; begin != end; ++begin, ++capacity)
+        {
+            *capacity = tick(*begin);
+        }
     }
 
     template <typename T>
@@ -170,17 +185,7 @@ inline Biquadratic {
     template <typename T>
     constexpr biquad<T>::operator bool() const noexcept
     {
-        return stability;
-    }
-
-    template <typename T>
-    template <typename inIter, typename outIter>
-    constexpr void biquad<T>::batch(inIter begin, inIter end, outIter cap)
-    {
-        for (; begin != end; ++begin, ++cap)
-        {
-            *cap = tick(*begin);
-        }
+        return stability();
     }
 
     template <typename T>
