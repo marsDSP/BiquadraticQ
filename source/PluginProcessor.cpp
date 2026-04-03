@@ -5,7 +5,8 @@
 AudioPluginAudioProcessor::AudioPluginAudioProcessor()
      : AudioProcessor (BusesProperties()
                        .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+       apvts (*this, nullptr, "Parameters", createParameterLayout())
 {
 }
 
@@ -83,7 +84,15 @@ void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
-    juce::ignoreUnused (sampleRate, samplesPerBlock);
+    currentSampleRate = sampleRate;
+    juce::ignoreUnused (samplesPerBlock);
+
+    for (auto& filter : filters)
+    {
+        filter.reset();
+    }
+
+    updateCoefficients();
 }
 
 void AudioPluginAudioProcessor::releaseResources()
@@ -121,6 +130,18 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 {
     juce::ignoreUnused (midiMessages);
     juce::ScopedNoDenormals noDenormals;
+
+    updateCoefficients();
+
+    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+    {
+        auto* channelData = buffer.getWritePointer (channel);
+        auto& filter = filters[static_cast<size_t>(channel)];
+        for (int i = 0; i < buffer.getNumSamples(); ++i)
+        {
+            channelData[i] = filter.tick (channelData[i]);
+        }
+    }
 }
 
 //==============================================================================
@@ -137,17 +158,65 @@ juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
 //==============================================================================
 void AudioPluginAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
-    juce::ignoreUnused (destData);
+    auto state = apvts.copyState();
+    std::unique_ptr<juce::XmlElement> xml (state.createXml());
+    copyXmlToBinary (*xml, destData);
 }
 
 void AudioPluginAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
-    juce::ignoreUnused (data, sizeInBytes);
+    std::unique_ptr<juce::XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
+    if (xmlState.get() != nullptr)
+        if (xmlState->hasTagName (apvts.state.getType()))
+            apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::createParameterLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("cutoff", 1), "Cutoff", juce::NormalisableRange<float> (20.0f, 20000.0f, 0.1f, 0.5f), 1000.0f));
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("q", 1), "Q", juce::NormalisableRange<float> (0.1f, 10.0f, 0.01f), 0.707f));
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("gain", 1), "Gain", juce::NormalisableRange<float> (-24.0f, 24.0f, 0.1f), 0.0f));
+
+    juce::StringArray types;
+    types.add ("LowPass");
+    types.add ("HighPass");
+    types.add ("BandPass");
+    types.add ("AllPass");
+    layout.add (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID ("type", 1), "Filter Type", types, 0));
+
+    return layout;
+}
+
+void AudioPluginAudioProcessor::updateCoefficients()
+{
+    const auto cutoff = apvts.getRawParameterValue ("cutoff")->load();
+    const auto q = apvts.getRawParameterValue ("q")->load();
+    const auto gain = apvts.getRawParameterValue ("gain")->load();
+    const auto typeIndex = static_cast<int>(apvts.getRawParameterValue ("type")->load());
+
+    Biquadratic::biquad<float> newCoeffs;
+    const auto sr = static_cast<float>(currentSampleRate);
+
+    switch (typeIndex)
+    {
+        case 0: newCoeffs = MarsDSP::Filters::Coeffs::CoeffCalc<float, Biquadratic::FilterType::LowPass>{}(sr, cutoff, q, gain); break;
+        case 1: newCoeffs = MarsDSP::Filters::Coeffs::CoeffCalc<float, Biquadratic::FilterType::HighPass>{}(sr, cutoff, q, gain); break;
+        case 2: newCoeffs = MarsDSP::Filters::Coeffs::CoeffCalc<float, Biquadratic::FilterType::BandPass>{}(sr, cutoff, q, gain); break;
+        case 3: newCoeffs = MarsDSP::Filters::Coeffs::CoeffCalc<float, Biquadratic::FilterType::AllPass>{}(sr, cutoff, q, gain); break;
+        default: break;
+    }
+
+    for (auto& filter : filters)
+    {
+        filter.set_a0 (newCoeffs.get_a0());
+        filter.set_a1 (newCoeffs.get_a1());
+        filter.set_a2 (newCoeffs.get_a2());
+        filter.set_b0 (newCoeffs.get_b0());
+        filter.set_b1 (newCoeffs.get_b1());
+        filter.set_b2 (newCoeffs.get_b2());
+    }
 }
 
 //==============================================================================

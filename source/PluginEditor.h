@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include "PluginProcessor.h"
 
 //==============================================================================
@@ -15,6 +16,14 @@ public:
 
 private:
     AudioPluginAudioProcessor& processorRef;
+
+    juce::Slider cutoffSlider, qSlider, gainSlider;
+    juce::ComboBox typeBox;
+
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> cutoffAttachment, qAttachment, gainAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> typeAttachment;
+
+    juce::Label cutoffLabel, qLabel, gainLabel, typeLabel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)
 };

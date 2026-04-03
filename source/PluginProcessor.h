@@ -1,6 +1,13 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <array>
+#include <memory>
+#include "dsp/filters/filter_iir.h"
+#include "dsp/filters/filter_coeffs.h"
+#include "dsp/filters/filter_utils.h"
+
+using namespace MarsDSP::Filters;
 
 //==============================================================================
 class AudioPluginAudioProcessor final : public juce::AudioProcessor
@@ -42,7 +49,15 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    juce::AudioProcessorValueTreeState apvts;
+
 private:
+    juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    void updateCoefficients();
+
+    std::array<Biquadratic::biquad<float>, 2> filters;
+    double currentSampleRate { 44100.0 };
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };

@@ -20,6 +20,7 @@ endif()
 project(${PROJECT_NAME} VERSION ${CURRENT_VERSION})
 
 add_subdirectory(libs/JUCE)
+add_subdirectory(libs/JUCE/extras/AudioPluginHost)
 
 # Project configuration
 set(CMAKE_CXX_STANDARD 23)
@@ -94,13 +95,10 @@ add_library(SharedCode INTERFACE
         source/PluginProcessor.h
         source/dsp/filters/filter_iir.h
         source/dsp/filters/filter_coeffs.h
-        source/dsp/filters/filter_transformer.h
         source/dsp/filters/filter_config.h
         source/dsp/filters/filter_mathops.h
-        source/dsp/filters/filter_spec.h
         source/dsp/filters/filter_cascade.h
         source/dsp/filters/filter_engine.h
-        source/dsp/filters/filter_dispatcher.h
         source/dsp/filters/filter_utils.h
         source/dsp/filters/filter_base.h)
 

@@ -7,8 +7,9 @@
 #include <xsimd/xsimd.hpp>
 #include "filter_iir.h"
 #include "filter_utils.h"
+#include "filter_mathops.h"
 
-namespace MarsDSP::Filters::inline CoeffCalc
+namespace MarsDSP::Filters::Coeffs
 {
     template <typename T, FilterType Type>
     struct CoeffCalc
