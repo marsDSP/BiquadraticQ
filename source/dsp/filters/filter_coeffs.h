@@ -22,13 +22,12 @@ namespace MarsDSP::Filters::Coeffs
         constexpr biquad<T> operator()(T sr, T cf, T Q, T gain = 1) const
         {
             unused(gain);
-            const T newCF = fclamp(cf, static_cast<T>(1e-18), static_cast<T>(sr * 0.49));
+            const T newCF = fclamp(cf, static_cast<T>(10), static_cast<T>(sr * 0.49));
             const T newQ = fmax(Q, static_cast<T>(10e-9));
             const T w0 = (static_cast<T>(2) * std::numbers::pi_v<T>) * (newCF / sr);
             const auto [sinW0, cosW0] = xsimd::sincos(w0);
             const T alpha = sinW0 / (static_cast<T>(2) * newQ);
-            const T halfSin = fsin(w0 / static_cast<T>(2));
-            const T omega = static_cast<T>(2)*halfSin*halfSin;
+            const T omega = 1 - cosW0;
 
             std::array<T, 3> a{}, b{};
             a[0] = static_cast<T>(1+alpha);
@@ -47,13 +46,13 @@ namespace MarsDSP::Filters::Coeffs
         constexpr biquad<T> operator()(T sr, T cf, T Q, T gain = 1) const
         {
             unused(gain);
-            const T newCF = fclamp(cf, static_cast<T>(1e-18), static_cast<T>(sr * 0.49));
+            const T newCF = fclamp(cf, static_cast<T>(10), static_cast<T>(sr * 0.49));
             const T newQ = fmax(Q, static_cast<T>(10e-9));
             const T w0 = (static_cast<T>(2) * std::numbers::pi_v<T>) * (newCF / sr);
             const auto [sinW0, cosW0] = xsimd::sincos(w0);
             const T alpha = sinW0 / (static_cast<T>(2) * newQ);
 
-            const T onePlusCos = static_cast<T>(2) * std::pow(std::cos(w0 / static_cast<T>(2)), static_cast<T>(2));
+            const T onePlusCos = 1 + cosW0;
 
             std::array<T, 3> a{}, b{};
             a[0] = static_cast<T>(1+alpha);
@@ -77,7 +76,7 @@ namespace MarsDSP::Filters::Coeffs
             
             const T centerFreq = fclamp(centerFreqParam, minFreq, halfSr);
             const T bw = fmax(bandwidthParam, static_cast<T>(10e-9));
-            const T newQ = fmax(static_cast<T>(1000) / bw, static_cast<T>(10e-9));
+            const T newQ = fmax(centerFreq / bw, static_cast<T>(10e-9));
 
             const T w0 = (static_cast<T>(2) * std::numbers::pi_v<T>) * (centerFreq / sr);
             const auto [sinW0, cosW0] = xsimd::sincos(w0);
@@ -105,8 +104,7 @@ namespace MarsDSP::Filters::Coeffs
             const T w0 = (static_cast<T>(2) * std::numbers::pi_v<T>) * (newCF / sr);
             const auto [sinW0, cosW0] = xsimd::sincos(w0);
             const T alpha = sinW0 / (static_cast<T>(2) * newQ);
-            const T halfSin = fsin(w0 / static_cast<T>(2));
-            const T omega = static_cast<T>(2)*halfSin*halfSin;
+            const T omega = 1 - cosW0;
 
             std::array<T, 3> a{}, b{};
             a[0] = static_cast<T>(1+alpha);

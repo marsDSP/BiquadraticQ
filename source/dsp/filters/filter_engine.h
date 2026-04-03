@@ -18,10 +18,13 @@ namespace MarsDSP::Filters::Engine
     }
 
     template<typename T, typename Container>
-    void update_all(Container& filters, const biquad<T>& coeffs)
+    void update_all(Container& filters, const Biquadratic::biquad<T>& coeffs)
     {
         for (auto& filter : filters)
-            filter = coeffs;
+        {
+            filter.update_coefficients(coeffs.get_a0(), coeffs.get_a1(), coeffs.get_a2(),
+                                       coeffs.get_b0(), coeffs.get_b1(), coeffs.get_b2());
+        }
     }
 
     template<typename T>

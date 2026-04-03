@@ -69,6 +69,8 @@ namespace MarsDSP::Filters::inline Biquadratic
         constexpr explicit operator bool() const noexcept;
 
         constexpr void reset() noexcept;
+        constexpr void update_coefficients(SampleType a0, SampleType a1, SampleType a2,
+                                           SampleType b0, SampleType b1, SampleType b2) noexcept;
 
     private:
         SampleType coeff_b2 {0};
@@ -154,13 +156,25 @@ namespace MarsDSP::Filters::inline Biquadratic
         state_w1 = 0;
     }
 
+    template<typename T>
+    constexpr void biquad<T>::update_coefficients(SampleType a0, SampleType a1, SampleType a2,
+                                                   SampleType b0, SampleType b1, SampleType b2) noexcept
+    {
+        coeff_b2 = b2 / a0;
+        coeff_b1 = b1 / a0;
+        coeff_b0 = b0 / a0;
+        coeff_a2 = a2 / a0;
+        coeff_a1 = a1 / a0;
+        coeff_a0 = 1;
+    }
+
     template <typename T>
     constexpr biquad<T>::SampleType biquad<T>::tick(const SampleType xn) noexcept
     {
-        constexpr auto tiny = static_cast<T>(1e-18);
+        /*constexpr auto tiny = static_cast<T>(1e-18);*/
 
-        auto yn = coeff_b0 * xn + state_w0 + tiny;
-        state_w0 = coeff_b1 * xn - coeff_a1 * yn + state_w1 - tiny;
+        auto yn = coeff_b0 * xn + state_w0;
+        state_w0 = coeff_b1 * xn - coeff_a1 * yn + state_w1;
         state_w1 = coeff_b2 * xn - coeff_a2 * yn;
         return yn;
     }
