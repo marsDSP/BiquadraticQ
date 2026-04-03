@@ -21,6 +21,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     setupSlider(cutoffSlider, cutoffLabel, "Cutoff");
     setupSlider(qSlider, qLabel, "Q");
+    setupSlider(freqSlider, freqLabel, "Freq");
     setupSlider(gainSlider, gainLabel, "Gain");
 
     typeBox.addItemList({"LowPass", "HighPass", "BandPass", "AllPass"}, 1);
@@ -31,12 +32,17 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     cutoffAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processorRef.apvts, "cutoff", cutoffSlider);
     qAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processorRef.apvts, "q", qSlider);
+    freqAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processorRef.apvts, "freq", freqSlider);
     gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processorRef.apvts, "gain", gainSlider);
     typeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(processorRef.apvts, "type", typeBox);
+
+    typeBox.addListener(this);
+    updateSliderVisibility();
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
 {
+    typeBox.removeListener(this);
 }
 
 //==============================================================================
@@ -52,9 +58,26 @@ void AudioPluginAudioProcessorEditor::resized()
     
     auto sliderWidth = rowArea.getWidth() / 3;
     cutoffSlider.setBounds(rowArea.removeFromLeft(sliderWidth).reduced(10));
-    qSlider.setBounds(rowArea.removeFromLeft(sliderWidth).reduced(10));
+    auto qFreqArea = rowArea.removeFromLeft(sliderWidth).reduced(10);
+    qSlider.setBounds(qFreqArea);
+    freqSlider.setBounds(qFreqArea);
     gainSlider.setBounds(rowArea.reduced(10));
 
     area.removeFromTop(20); // space for labels
     typeBox.setBounds(area.removeFromTop(30).withSizeKeepingCentre(150, 30));
+}
+
+void AudioPluginAudioProcessorEditor::comboBoxChanged (juce::ComboBox* comboBoxThatHasChanged)
+{
+    if (comboBoxThatHasChanged == &typeBox)
+        updateSliderVisibility();
+}
+
+void AudioPluginAudioProcessorEditor::updateSliderVisibility()
+{
+    const bool isBandPass = (typeBox.getSelectedId() == 3); // BandPass is 3rd item (1-indexed)
+    qSlider.setVisible(!isBandPass);
+    qLabel.setVisible(!isBandPass);
+    freqSlider.setVisible(isBandPass);
+    freqLabel.setVisible(isBandPass);
 }

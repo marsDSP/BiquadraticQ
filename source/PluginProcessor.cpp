@@ -177,6 +177,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("cutoff", 1), "Cutoff", juce::NormalisableRange<float> (20.0f, 20000.0f, 0.1f, 0.5f), 1000.0f));
     layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("q", 1), "Q", juce::NormalisableRange<float> (0.1f, 10.0f, 0.01f), 0.707f));
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("freq", 1), "Freq", juce::NormalisableRange<float> (20.0f, 20000.0f, 0.1f, 0.5f), 5000.0f));
     layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("gain", 1), "Gain", juce::NormalisableRange<float> (-24.0f, 24.0f, 0.1f), 0.0f));
 
     juce::StringArray types;
@@ -193,6 +194,7 @@ void AudioPluginAudioProcessor::updateCoefficients()
 {
     const auto cutoff = apvts.getRawParameterValue ("cutoff")->load();
     const auto q = apvts.getRawParameterValue ("q")->load();
+    const auto freq = apvts.getRawParameterValue ("freq")->load();
     const auto gain = apvts.getRawParameterValue ("gain")->load();
     const auto typeIndex = static_cast<int>(apvts.getRawParameterValue ("type")->load());
 
@@ -203,7 +205,7 @@ void AudioPluginAudioProcessor::updateCoefficients()
     {
         case 0: newCoeffs = MarsDSP::Filters::Coeffs::CoeffCalc<float, Biquadratic::FilterType::LowPass>{}(sr, cutoff, q, gain); break;
         case 1: newCoeffs = MarsDSP::Filters::Coeffs::CoeffCalc<float, Biquadratic::FilterType::HighPass>{}(sr, cutoff, q, gain); break;
-        case 2: newCoeffs = MarsDSP::Filters::Coeffs::CoeffCalc<float, Biquadratic::FilterType::BandPass>{}(sr, cutoff, q, gain); break;
+        case 2: newCoeffs = MarsDSP::Filters::Coeffs::CoeffCalc<float, Biquadratic::FilterType::BandPass>{}(sr, freq, cutoff, gain); break;
         case 3: newCoeffs = MarsDSP::Filters::Coeffs::CoeffCalc<float, Biquadratic::FilterType::AllPass>{}(sr, cutoff, q, gain); break;
         default: break;
     }
