@@ -54,9 +54,9 @@ public:
 
 private:
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-    void updateCoefficients();
+    void updateCoefficients(int numSamples);
 
-    std::array<biquad<float>, 2> filters;
+    std::array<std::array<biquad<double>, 2>, 8> filters;
     double currentSampleRate { 44100.0 };
 
     // cache param vals to avoid redundant recalcs
@@ -65,6 +65,8 @@ private:
     float lastFreq { -1.0f };
     float lastGain { -1.0f };
     int lastType { -1 };
+    int lastSlope { -1 };
+    int activeStages { 1 };
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)

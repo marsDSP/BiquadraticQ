@@ -30,11 +30,19 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     typeLabel.attachToComponent(&typeBox, false);
     addAndMakeVisible(typeLabel);
 
+    juce::StringArray slopes { "6 dB/oct", "12 dB/oct", "24 dB/oct", "48 dB/oct", "96 dB/oct" };
+    slopeBox.addItemList(slopes, 1);
+    addAndMakeVisible(slopeBox);
+    slopeLabel.setText("Slope", juce::dontSendNotification);
+    slopeLabel.attachToComponent(&slopeBox, false);
+    addAndMakeVisible(slopeLabel);
+
     cutoffAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processorRef.apvts, "cutoff", cutoffSlider);
     qAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processorRef.apvts, "q", qSlider);
     freqAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processorRef.apvts, "freq", freqSlider);
     gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processorRef.apvts, "gain", gainSlider);
     typeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(processorRef.apvts, "type", typeBox);
+    slopeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(processorRef.apvts, "slope", slopeBox);
 
     typeBox.addListener(this);
     updateSliderVisibility();
@@ -64,7 +72,9 @@ void AudioPluginAudioProcessorEditor::resized()
     gainSlider.setBounds(rowArea.reduced(10));
 
     area.removeFromTop(20); // space for labels
-    typeBox.setBounds(area.removeFromTop(30).withSizeKeepingCentre(150, 30));
+    auto bottomArea = area.removeFromTop(30);
+    typeBox.setBounds(bottomArea.removeFromLeft(bottomArea.getWidth() / 2).reduced(10).withSizeKeepingCentre(150, 30));
+    slopeBox.setBounds(bottomArea.reduced(10).withSizeKeepingCentre(150, 30));
 }
 
 void AudioPluginAudioProcessorEditor::comboBoxChanged (juce::ComboBox* comboBoxThatHasChanged)
@@ -76,8 +86,14 @@ void AudioPluginAudioProcessorEditor::comboBoxChanged (juce::ComboBox* comboBoxT
 void AudioPluginAudioProcessorEditor::updateSliderVisibility()
 {
     const bool isBandPass = (typeBox.getSelectedId() == 3); // BandPass is 3rd item (1-indexed)
+    const bool isAllPass = (typeBox.getSelectedId() == 4);
+    
     qSlider.setVisible(!isBandPass);
     qLabel.setVisible(!isBandPass);
     freqSlider.setVisible(isBandPass);
     freqLabel.setVisible(isBandPass);
+    
+    const bool showSlope = (typeBox.getSelectedId() <= 2); // LP or HP
+    slopeBox.setVisible(showSlope);
+    slopeLabel.setVisible(showSlope);
 }

@@ -207,3 +207,12 @@ if(DOXYGEN_FOUND)
         VERBATIM
     )
 endif()
+
+# Post-build script to copy VST3 bundle to Desktop/vst test
+if(TARGET ${PROJECT_NAME}_VST3)
+    add_custom_command(TARGET ${PROJECT_NAME}_VST3 POST_BUILD
+            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/scripts/bash/copy_vst3.sh" "$<TARGET_BUNDLE_DIR:${PROJECT_NAME}_VST3>"
+            COMMENT "Triggering post-build copy of VST3 to Desktop/vst test..."
+            VERBATIM
+    )
+endif()

@@ -15,10 +15,10 @@ namespace MarsDSP::Filters::inline BiquadCascade {
     public:
         using SampleType = T;
         using SizeType = std::size_t;
-        using ref = SampleType&;
-        using cref = const SampleType&;
-        using itr = SampleType*;
-        using citr = const SampleType*;
+        using ref = biquad<T>&;
+        using cref = const biquad<T>&;
+        using itr = biquad<T>*;
+        using citr = const biquad<T>*;
 
         constexpr cascade() = default;
         ~cascade() = default;

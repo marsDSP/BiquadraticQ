@@ -10,6 +10,18 @@
 #include <juce_core/juce_core.h>
 
 #ifndef expects
+template <typename T>
+constexpr bool is_nan(const std::complex<T>& c) noexcept
+{
+    return std::isnan(c.real()) || std::isnan(c.imag());
+}
+
+template <typename T>
+constexpr bool is_odd(T x) noexcept
+{
+    return static_cast<long long>(x) % 2 != 0;
+}
+
 #define expects(cond, msg) jassert(cond)
 #endif
 
@@ -77,7 +89,7 @@ namespace MarsDSP::Filters::inline Base {
 
         [[nodiscard]] constexpr bool NaN() const noexcept
         {
-            return std::isnan(this->first) || std::isnan(this->second);
+            return is_nan(this->first) || is_nan(this->second);
         }
     };
 
@@ -222,7 +234,7 @@ namespace MarsDSP::Filters::inline Base {
 
         [[nodiscard]] constexpr size_type size() const noexcept
         {
-            return (num_poles_ + 1) / 2 + 1;
+            return (num_poles_ + 1) / 2;
         }
 
         constexpr const_iterator begin() const noexcept
@@ -257,9 +269,9 @@ namespace MarsDSP::Filters::inline Base {
         }
 
     private:
-        constexpr bool is_even(T x)
+        constexpr bool is_even(size_type x) const noexcept
         {
-            return !is_odd(x);
+            return x % 2 == 0;
         }
 
         [[nodiscard]] constexpr size_type pair_count() const noexcept

@@ -2,7 +2,7 @@
 
 # Define paths (CLI args override defaults)
 SOURCE_BUNDLE="${1:-$HOME/CLionProjects/BiquadraticQ/cmake-build-debug/BiquadraticQ_artefacts/Debug/VST3/BiquadraticQ.vst3}"
-DEST_DIR="${2:-$HOME/Desktop/plugintest}"
+DEST_DIR="${2:-$HOME/Desktop/vst test}"
 VST3_NAME="$(basename "$SOURCE_BUNDLE")"
 
 # Check if source file exists

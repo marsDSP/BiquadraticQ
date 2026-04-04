@@ -21,12 +21,12 @@ private:
     AudioPluginAudioProcessor& processorRef;
 
     juce::Slider cutoffSlider, qSlider, freqSlider, gainSlider;
-    juce::ComboBox typeBox;
+    juce::ComboBox typeBox, slopeBox;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> cutoffAttachment, qAttachment, freqAttachment, gainAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> typeAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> typeAttachment, slopeAttachment;
 
-    juce::Label cutoffLabel, qLabel, freqLabel, gainLabel, typeLabel;
+    juce::Label cutoffLabel, qLabel, freqLabel, gainLabel, typeLabel, slopeLabel;
 
     void updateSliderVisibility();
 

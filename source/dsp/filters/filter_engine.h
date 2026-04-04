@@ -27,6 +27,17 @@ namespace MarsDSP::Filters::Engine
         }
     }
 
+    template<typename T, typename Container>
+    void smooth_all(Container& filters, const biquad<T>& coeffs, int steps)
+    {
+        for (auto& filter : filters)
+        {
+            filter.smooth_coefficients(coeffs.get_a0(), coeffs.get_a1(), coeffs.get_a2(),
+                                       coeffs.get_b0(), coeffs.get_b1(), coeffs.get_b2(),
+                                       steps);
+        }
+    }
+
     template<typename T>
     biquad<T> make_biquad(const pz_pair<T> &pair) noexcept
     {
@@ -36,8 +47,8 @@ namespace MarsDSP::Filters::Engine
                                           pair.zeros().first);
         }
         return Biquadratic::biquad<T>(pair.poles().first,
-                                      pair.zeros().first,
                                       pair.poles().second,
+                                      pair.zeros().first,
                                       pair.zeros().second);
     }
 
@@ -87,8 +98,13 @@ namespace MarsDSP::Filters::Engine
         }
 
         const auto response = make_response(cascade, digital.w() / constants<T>::two_pi);
-        const auto scale = digital.gain() / std::abs(response);
-        apply_scale(cascade[0], scale);
+        const auto total_scale = digital.gain() / std::abs(response);
+        const auto scale_per_stage = std::pow(total_scale, 1.0 / static_cast<double>(num_biquads));
+
+        for (auto i{0ul}; i < num_biquads; ++i)
+        {
+            apply_scale(cascade[i], static_cast<T>(scale_per_stage));
+        }
 
         return cascade;
     }
