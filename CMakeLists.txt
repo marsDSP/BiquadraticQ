@@ -59,9 +59,17 @@ if(APPLE)
     set(CMAKE_XCODE_ATTRIBUTE_MACOSX_DEPLOYMENT_TARGET[arch=arm64] "11.0" CACHE STRING "arm 64 minimum deployment target" FORCE)
 endif()
 
-# Disable all warnings on non-MSVC compilers
+# Compiler-specific settings
 if(NOT MSVC)
     add_definitions(-w)
+    add_compile_options(-O3 -ffast-math)
+
+    # Conditionally add -march=native as it may not be supported on all platforms/compilers (e.g. macOS Universal Binaries)
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
+    if(COMPILER_SUPPORTS_MARCH_NATIVE)
+        add_compile_options(-march=native)
+    endif()
 endif()
 
 if(MSVC)

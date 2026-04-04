@@ -133,15 +133,16 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     updateCoefficients();
 
-    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-        auto& filter = filters[static_cast<size_t>(channel)];
-        for (int i = 0; i < buffer.getNumSamples(); ++i)
-        {
-            channelData[i] = filter.tick (channelData[i]);
-        }
-    }
+    const int numChannels = buffer.getNumChannels();
+    const int numSamples = buffer.getNumSamples();
+
+    // collect channel ptrs
+    float *channelPtrs[2] = { nullptr, nullptr };
+    for (int ch = 0; ch < numChannels && ch < 2; ++ch)
+        channelPtrs[ch] = buffer.getWritePointer(ch);
+
+    // process all all channels simultaneously with SIMD
+    tickSIMD<float, 2>(filters, channelPtrs, numSamples);
 }
 
 //==============================================================================
@@ -159,13 +160,13 @@ juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
 void AudioPluginAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
-    std::unique_ptr<juce::XmlElement> xml (state.createXml());
+    std::unique_ptr xml (state.createXml());
     copyXmlToBinary (*xml, destData);
 }
 
 void AudioPluginAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    std::unique_ptr<juce::XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
+    std::unique_ptr xmlState (getXmlFromBinary (data, sizeInBytes));
     if (xmlState.get() != nullptr)
         if (xmlState->hasTagName (apvts.state.getType()))
             apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
@@ -175,10 +176,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("cutoff", 1), "Cutoff", juce::NormalisableRange<float> (20.0f, 20000.0f, 0.1f, 0.5f), 1000.0f));
-    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("q", 1), "Q", juce::NormalisableRange<float> (0.1f, 10.0f, 0.01f), 0.707f));
-    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("freq", 1), "Freq", juce::NormalisableRange<float> (20.0f, 20000.0f, 0.1f, 0.5f), 5000.0f));
-    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("gain", 1), "Gain", juce::NormalisableRange<float> (-24.0f, 24.0f, 0.1f), 0.0f));
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("cutoff", 1), "Cutoff", juce::NormalisableRange (20.0f, 20000.0f, 0.1f, 0.5f), 1000.0f));
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("q", 1), "Q", juce::NormalisableRange (0.1f, 10.0f, 0.01f), 0.707f));
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("freq", 1), "Freq", juce::NormalisableRange (20.0f, 20000.0f, 0.1f, 0.5f), 5000.0f));
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID ("gain", 1), "Gain", juce::NormalisableRange (-24.0f, 24.0f, 0.1f), 0.0f));
 
     juce::StringArray types;
     types.add ("LowPass");
@@ -198,15 +199,37 @@ void AudioPluginAudioProcessor::updateCoefficients()
     const auto gain = apvts.getRawParameterValue ("gain")->load();
     const auto typeIndex = static_cast<int>(apvts.getRawParameterValue ("type")->load());
 
-    Biquadratic::biquad<float> newCoeffs;
+    // skip recalc if nothing changed
+    if (cutoff == lastCutoff && q == lastQ && freq == lastFreq &&
+        gain == lastGain && typeIndex == lastType)
+        return;
+
+    lastCutoff = cutoff;
+    lastQ = q;
+    lastFreq = freq;
+    lastGain = gain;
+    lastType = typeIndex;
+
+    biquad<float> newCoeffs;
     const auto sr = static_cast<float>(currentSampleRate);
 
     switch (typeIndex)
     {
-        case 0: newCoeffs = Engine::calculate_coeffs<float, Biquadratic::FilterType::LowPass>(sr, cutoff, q, gain); break;
-        case 1: newCoeffs = Engine::calculate_coeffs<float, Biquadratic::FilterType::HighPass>(sr, cutoff, q, gain); break;
-        case 2: newCoeffs = Engine::calculate_coeffs<float, Biquadratic::FilterType::BandPass>(sr, freq, cutoff, gain); break;
-        case 3: newCoeffs = Engine::calculate_coeffs<float, Biquadratic::FilterType::AllPass>(sr, cutoff, q, gain); break;
+        case 0: newCoeffs = Engine::calculate_coeffs<float,
+                            FilterType::LowPass>(sr, cutoff, q, gain);
+                            break;
+
+        case 1: newCoeffs = Engine::calculate_coeffs<float,
+                            FilterType::HighPass>(sr, cutoff, q, gain);
+                            break;
+
+        case 2: newCoeffs = Engine::calculate_coeffs<float,
+                            FilterType::BandPass>(sr, freq, cutoff, gain);
+                            break;
+
+        case 3: newCoeffs = Engine::calculate_coeffs<float,
+                            FilterType::AllPass>(sr, cutoff, q, gain);
+                            break;
         default: break;
     }
 

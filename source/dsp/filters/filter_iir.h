@@ -6,6 +6,7 @@
 #include <complex>
 #include <algorithm>
 #include <stdexcept>
+#include <xsimd/xsimd.hpp>
 
 namespace MarsDSP::Filters::inline Biquadratic
 {
@@ -59,6 +60,12 @@ namespace MarsDSP::Filters::inline Biquadratic
         constexpr void set_b0(SampleType val) noexcept;
         constexpr void set_b1(SampleType val) noexcept;
         constexpr void set_b2(SampleType val) noexcept;
+
+        // state get/set
+        constexpr SampleType get_w0() const noexcept;
+        constexpr SampleType get_w1() const noexcept;
+        constexpr void set_w0(SampleType val) noexcept;
+        constexpr void set_w1(SampleType val) noexcept;
 
         constexpr SampleType tick(SampleType xn) noexcept;
 
@@ -169,14 +176,86 @@ namespace MarsDSP::Filters::inline Biquadratic
     }
 
     template <typename T>
-    constexpr biquad<T>::SampleType biquad<T>::tick(const SampleType xn) noexcept
+    constexpr biquad<T>::SampleType biquad<T>::tick(SampleType xn) noexcept
     {
-        /*constexpr auto tiny = static_cast<T>(1e-18);*/
-
         auto yn = coeff_b0 * xn + state_w0;
         state_w0 = coeff_b1 * xn - coeff_a1 * yn + state_w1;
         state_w1 = coeff_b2 * xn - coeff_a2 * yn;
         return yn;
+    }
+
+    // in *theory* i should be able to parallelize N independent biquads
+    // each filter in the array processes a channel
+    template <typename T, std::size_t N>
+    void tickSIMD(std::array<biquad<T>, N> &filters, T **channelData, int numSamples)
+    {
+        if (numSamples <= 0) return;
+
+        // vars/aliases
+        using BatchType = xsimd::batch<T>;
+        constexpr auto SIMDSize = BatchType::size;
+
+        // assert correct simd width so N works
+        static_assert(N <= SIMDSize, "Channel count must fit in a SIMD register");
+
+        // load all filter coeffs into registers
+        alignas(xsimd::default_arch::alignment()) std::array<T, SIMDSize> b0_arr{}, b1_arr{}, b2_arr{};
+        alignas(xsimd::default_arch::alignment()) std::array<T, SIMDSize> a1_arr{}, a2_arr{};
+        alignas(xsimd::default_arch::alignment()) std::array<T, SIMDSize> w0_arr{}, w1_arr{};
+
+        for (auto ch {0uz}; ch < N; ++ch)
+        {
+            b0_arr[ch] = filters[ch].get_b0();
+            b1_arr[ch] = filters[ch].get_b1();
+            b2_arr[ch] = filters[ch].get_b2();
+            a1_arr[ch] = filters[ch].get_a1();
+            a2_arr[ch] = filters[ch].get_a2();
+            w0_arr[ch] = filters[ch].get_w0();
+            w1_arr[ch] = filters[ch].get_w1();
+        }
+
+        // expose state getters
+        auto b0 = BatchType::load_aligned(b0_arr.data());
+        auto b1 = BatchType::load_aligned(b1_arr.data());
+        auto b2 = BatchType::load_aligned(b2_arr.data());
+        auto a1 = BatchType::load_aligned(a1_arr.data());
+        auto a2 = BatchType::load_aligned(a2_arr.data());
+        auto w0 = BatchType::load_aligned(w0_arr.data());
+        auto w1 = BatchType::load_aligned(w1_arr.data());
+
+        alignas(xsimd::default_arch::alignment()) std::array<T, SIMDSize> xn_arr{};
+        alignas(xsimd::default_arch::alignment()) std::array<T, SIMDSize> yn_arr{};
+
+        for (int i {}; i < numSamples; ++i)
+        {
+            // grab 1 sample from each channel
+            for (auto ch {0uz}; ch < N; ++ch)
+                xn_arr[ch] = channelData[ch] ? channelData[ch][i] : 0;
+
+            auto xn = BatchType::load_aligned(xn_arr.data());
+
+            // transposed direct form II
+            auto yn = xsimd::fma(b0, xn, w0);
+            w0 = xsimd::fma(b1, xn, xsimd::fma(-a1, yn, w1)); // b1*xn - a1*yn + w1
+            w1 = xsimd::fma(b2, xn, -a2 * yn);
+
+            // back to each channel
+            yn.store_aligned(yn_arr.data());
+            for (auto ch {0uz}; ch < N; ++ch)
+            {
+                if (channelData[ch])
+                    channelData[ch][i] = yn_arr[ch];
+            }
+        }
+        // store state back
+        w0.store_aligned(w0_arr.data());
+        w1.store_aligned(w1_arr.data());
+
+        for (std::size_t ch = 0; ch < N; ++ch)
+        {
+            filters[ch].set_w0(w0_arr[ch]);
+            filters[ch].set_w1(w1_arr[ch]);
+        }
     }
 
     template <typename T>
@@ -199,6 +278,30 @@ namespace MarsDSP::Filters::inline Biquadratic
     constexpr biquad<T>::operator bool() const noexcept
     {
         return stability();
+    }
+
+    template <typename T>
+    constexpr biquad<T>::SampleType biquad<T>::get_w0() const noexcept
+    {
+        return state_w0;
+    }
+
+    template <typename T>
+    constexpr biquad<T>::SampleType biquad<T>::get_w1() const noexcept
+    {
+        return state_w1;
+    }
+
+    template <typename T>
+    constexpr void biquad<T>::set_w0(SampleType val) noexcept
+    {
+        state_w0 = val;
+    }
+
+    template <typename T>
+    constexpr void biquad<T>::set_w1(SampleType val) noexcept
+    {
+        state_w1 = val;
     }
 
     template <typename T>
